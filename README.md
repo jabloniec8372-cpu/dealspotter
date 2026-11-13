@@ -18,13 +18,14 @@ is easy to miss, and the same car shows up on three sites under three titles.
 - **New vs. price drop**: a listing is identified by *source + listing id*. A repeat
   read is silent; a lower price, or a price that falls into the budget, is its own alert.
 - **Never guesses**: a missing mileage or year does not reject the car. It is
-  reported with `UWAGA: przebieg nieznany - sprawdź`. A row whose price cannot be read
+  reported with `CHECK: mileage unknown - please check`. A row whose price cannot be read
   is listed as skipped with the reason, not dropped silently.
 - **Possible duplicates**: the same make/model/year/region with similar mileage and
   price on another source is *flagged* in the alert, never hidden (it could be a
   different car).
-- **Client statuses**: `nowe` / `do_kontaktu` / `sprawdzone` / `odrzucone`.
-  Reads never overwrite a status; a listing marked `odrzucone` stays quiet.
+- **Client statuses**: `new` / `to_contact` / `checked` / `rejected`.
+  Reads never overwrite a status; a listing marked `rejected` stays quiet.
+  (The Polish names `nowe` / `do_kontaktu` / `sprawdzone` / `odrzucone` still work.)
 - **Alerts never lost**: written to an outbox first, marked as sent only after
   Telegram accepted them. A failed send is retried on the next run.
 
@@ -44,7 +45,7 @@ python3 demo.py
 python3 -m unittest discover -s tests
 
 python3 -m dealspotter run --criteria criteria_demo.json --feed feed_a.json feed_b.json
-python3 -m dealspotter status "dealer-feed-A|A2" do_kontaktu
+python3 -m dealspotter status "dealer-feed-A|A2" to_contact
 TELEGRAM_TOKEN=... TELEGRAM_CHAT_ID=... python3 -m dealspotter run --criteria criteria_demo.json --feed feed_a.json --telegram
 ```
 
@@ -58,12 +59,12 @@ TELEGRAM_TOKEN=... TELEGRAM_CHAT_ID=... python3 -m dealspotter run --criteria cr
 | `dealspotter/store.py` | SQLite: seen listings, client status, alert outbox |
 | `dealspotter/monitor.py` | One run (new / drop / now matches) and outbox delivery |
 | `dealspotter/telegram.py` | Telegram sender (HTTP injectable) |
-| `tests/` | 17 tests, including failed delivery, status preservation, duplicates |
+| `tests/` | 19 tests, including failed delivery, status preservation, duplicates |
 
 ## Honest limits (v1)
 
 - Demo data is **synthetic**. Telegram sending is tested with a fake HTTP call and
   has not been run against the live API from here.
-- Alert texts are in Polish only; prices in EUR only.
+- Alert texts are in English by default (`--lang pl` for Polish); prices in EUR only.
 - Duplicate detection is a heuristic and only flags; it needs known year and mileage on both sides.
 - Reading is feed-based: no browsing of portals, no images, no VIN lookup.

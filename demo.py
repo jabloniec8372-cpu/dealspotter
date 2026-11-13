@@ -1,5 +1,5 @@
 """Two days of synthetic feeds from two sources. Run: python3 demo.py"""
-import json, tempfile
+import json, os, tempfile
 from pathlib import Path
 
 from dealspotter import feed
@@ -31,7 +31,7 @@ DAY2_B = {"source": "partner-feed-B", "listings": [
 ]}
 
 
-def main():
+def main(lang="en"):
     tmp = Path(tempfile.mkdtemp())
     db = Store(str(tmp / "demo.db"))
     c = Criteria.from_dict(json.loads(Path("criteria_demo.json").read_text(encoding="utf-8")))
@@ -42,10 +42,10 @@ def main():
             good, bad = feed.parse(f)
             for rid, why in bad:
                 print(f"skipped {f['source']}#{rid}: {why}")
-            process(good, c, db)
-        deliver(db, lambda t: (sent.append(t), print("->", t)))
+            process(good, c, db, lang)
+        ok, _ = deliver(db, lambda t: (sent.append(t), print("->", t)))
         if day == "DAY 1":
-            db.set_status("dealer-feed-A|A2", "do_kontaktu")
+            db.set_status("dealer-feed-A|A2", "to_contact")
     db.close()
 
 

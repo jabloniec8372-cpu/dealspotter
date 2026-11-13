@@ -9,6 +9,9 @@ from typing import Optional
 from .models import Listing
 
 STATUSES = ("nowe", "do_kontaktu", "sprawdzone", "odrzucone")
+# English names for the same four statuses (stored values stay as they are)
+STATUS_ALIASES = {"new": "nowe", "to_contact": "do_kontaktu", "checked": "sprawdzone", "rejected": "odrzucone"}
+STATUS_CHOICES = STATUSES + tuple(STATUS_ALIASES)
 
 
 class Store:
@@ -47,8 +50,9 @@ class Store:
         return out
 
     def set_status(self, key: str, status: str) -> None:
+        status = STATUS_ALIASES.get(status, status)
         if status not in STATUSES:
-            raise ValueError(f"status must be one of {STATUSES}")
+            raise ValueError(f"status must be one of {STATUS_CHOICES}")
         if self.db.execute("UPDATE listings SET status=? WHERE key=?", (status, key)).rowcount == 0:
             raise KeyError(key)
         self.db.commit()

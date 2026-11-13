@@ -10,9 +10,29 @@ from .match import evaluate
 from .models import Criteria, Listing
 from .store import Store
 
-CHECK_TEXT = {
-    "NO_KM": "przebieg nieznany - sprawdź",
-    "NO_YEAR": "rocznik nieznany - sprawdź",
+TEXT = {
+    "en": {
+        "NO_KM": "mileage unknown - please check",
+        "NO_YEAR": "year unknown - please check",
+        "km": "{n}k km", "km_unknown": "mileage ?",
+        "limit": " and within your limit of {p}",
+        "DROP": "{d}. Price dropped from {old} to {new}{limit}.",
+        "NOW_MATCHES": "{d}. Now matches your criteria: {new}{limit}.",
+        "NEW": "{d}. New listing: {new}{limit}.",
+        "check": " CHECK: {t}.",
+        "dup": " Possible duplicate: {src} #{id} for {p} (please check, it may be the same car).",
+    },
+    "pl": {
+        "NO_KM": "przebieg nieznany - sprawdź",
+        "NO_YEAR": "rocznik nieznany - sprawdź",
+        "km": "{n} tys. km", "km_unknown": "przebieg ?",
+        "limit": " i mieści się w Twoim limicie {p}",
+        "DROP": "{d}. Cena spadła z {old} do {new}{limit}.",
+        "NOW_MATCHES": "{d}. Teraz pasuje do kryteriów: {new}{limit}.",
+        "NEW": "{d}. Nowe ogłoszenie: {new}{limit}.",
+        "check": " UWAGA: {t}.",
+        "dup": " Możliwy duplikat: {src} #{id} za {p} (sprawdź, to może być to samo auto).",
+    },
 }
 
 
@@ -20,11 +40,12 @@ def eur(p: Decimal) -> str:
     return f"{int(p):,}".replace(",", " ") + " €"
 
 
-def describe(l: Listing) -> str:
+def describe(l: Listing, lang: str = "en") -> str:
+    t = TEXT[lang]
     parts = [l.title]
     if l.year:
         parts.append(str(l.year))
-    parts.append(f"{l.km // 1000} tys. km" if l.km is not None else "przebieg ?")
+    parts.append(t["km"].format(n=l.km // 1000) if l.km is not None else t["km_unknown"])
     parts.append(l.region)
     return ", ".join(parts)
 
@@ -37,7 +58,8 @@ class Result:
     unreadable: list = field(default_factory=list)
 
 
-def process(listings: Iterable[Listing], c: Criteria, store: Store) -> Result:
+def process(listings: Iterable[Listing], c: Criteria, store: Store, lang: str = "en") -> Result:
+    t = TEXT[lang]
     res = Result()
     for l in listings:
         res.seen += 1
@@ -58,18 +80,14 @@ def process(listings: Iterable[Listing], c: Criteria, store: Store) -> Result:
             event = "NOW_MATCHES"
         if event is None:
             continue
-        limit = f" i mieści się w Twoim limicie {eur(c.max_price)}" if c.max_price is not None else ""
-        if event == "DROP":
-            text = f"{describe(l)}. Cena spadła z {eur(prev[0])} do {eur(l.price)}{limit}."
-        elif event == "NOW_MATCHES":
-            text = f"{describe(l)}. Teraz pasuje do kryteriów: {eur(l.price)}{limit}."
-        else:
-            text = f"{describe(l)}. Nowe ogłoszenie: {eur(l.price)}{limit}."
+        limit = t["limit"].format(p=eur(c.max_price)) if c.max_price is not None else ""
+        old = eur(prev[0]) if prev else ""
+        text = t[event].format(d=describe(l, lang), old=old, new=eur(l.price), limit=limit)
         for chk in m.checks:
-            text += f" UWAGA: {CHECK_TEXT[chk]}."
+            text += t["check"].format(t=t[chk])
         dups = possible_duplicates(l, store.all_listings())
         for d in dups:
-            text += f" Możliwy duplikat: {d.source} #{d.listing_id} za {eur(d.price)} (sprawdź, to może być to samo auto)."
+            text += t["dup"].format(src=d.source, id=d.listing_id, p=eur(d.price))
         if l.url:
             text += f" {l.url}"
         if store.queue(f"{l.key}|{event}|{l.price}", text):

@@ -1,3 +1,4 @@
+import json
 import unittest
 from decimal import Decimal
 
@@ -69,7 +70,7 @@ class MonitorTests(unittest.TestCase):
         self.assertEqual(process([car(price=11500)], C, self.s).queued, 0)
         r = process([car(price=11000)], C, self.s)
         self.assertEqual(r.queued, 1)
-        self.assertIn("Cena spadła z 11 500 € do 11 000 €", self.s.pending()[-1][1])
+        self.assertIn("Price dropped from 11 500 € to 11 000 €", self.s.pending()[-1][1])
 
     def test_price_rise_is_silent(self):
         process([car(price=11000)], C, self.s)
@@ -78,7 +79,7 @@ class MonitorTests(unittest.TestCase):
     def test_drop_into_limit(self):
         self.assertEqual(process([car(price=13200)], C, self.s).queued, 0)
         self.assertEqual(process([car(price=11900)], C, self.s).queued, 1)
-        self.assertIn("spadła z 13 200 € do 11 900 €", self.s.pending()[0][1])
+        self.assertIn("dropped from 13 200 € to 11 900 €", self.s.pending()[0][1])
 
     def test_status_survives_reads_and_rejected_stays_quiet(self):
         process([car(price=11500)], C, self.s)
@@ -102,17 +103,27 @@ class MonitorTests(unittest.TestCase):
         process([car("9", 10700, 96000, source="B")], C, self.s)
         texts = [t for _, t in self.s.pending()]
         self.assertEqual(len(texts), 2)
-        self.assertIn("Możliwy duplikat: A #1", texts[1])
+        self.assertIn("Possible duplicate: A #1", texts[1])
+
+    def test_polish_alert_texts_still_available(self):
+        process([car(price=11500)], C, self.s, "pl")
+        process([car(price=11000)], C, self.s, "pl")
+        self.assertIn("Cena spadła z 11 500 € do 11 000 €", self.s.pending()[-1][1])
+
+    def test_english_status_names_map_to_stored_ones(self):
+        process([car(price=11500)], C, self.s)
+        self.s.set_status("A|1", "rejected")
+        self.assertEqual(self.s.get("A|1")[2], "odrzucone")
+        self.assertEqual(process([car(price=10000)], C, self.s).queued, 0)
 
     def test_unknown_km_warning_in_alert(self):
         process([car(km=None)], C, self.s)
-        self.assertIn("przebieg nieznany", self.s.pending()[0][1])
+        self.assertIn("mileage unknown", self.s.pending()[0][1])
 
 
 class DeliveryTests(unittest.TestCase):
     def test_failed_send_stays_pending_and_is_retried(self):
         s = Store()
-        self.addCleanup(s.close)
         process([car("1"), car("2")], C, s)
         calls = []
 
@@ -128,7 +139,6 @@ class DeliveryTests(unittest.TestCase):
 
     def test_no_duplicate_alert_after_delivery(self):
         s = Store()
-        self.addCleanup(s.close)
         process([car()], C, s)
         deliver(s, lambda t: None)
         self.assertEqual(process([car()], C, s).queued, 0)
@@ -149,9 +159,9 @@ class DemoTest(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             demo.main()
         out = buf.getvalue()
-        self.assertIn("Cena spadła z 13 200 € do 11 900 €", out)
-        self.assertIn("Możliwy duplikat", out)
-        self.assertIn("przebieg nieznany", out)
+        self.assertIn("Price dropped from 13 200 € to 11 900 €", out)
+        self.assertIn("Possible duplicate", out)
+        self.assertIn("mileage unknown", out)
         self.assertIn("skipped dealer-feed-A#A5", out)
 
 
